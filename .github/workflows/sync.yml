@@ -1,0 +1,116 @@
+name: Sync APX plugin
+
+on:
+  schedule:
+    # 每 2 小时检查一次；上游通常随游戏版本更新，检查成本仅为 5 个 manifest。
+    - cron: "17 */2 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "忽略本地状态，强制重新打包并发布"
+        type: boolean
+        default: false
+  repository_dispatch:
+    types: [apx-upstream-updated]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apx-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 准备 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 检查上游快照
+        id: check
+        env:
+          APX_UPSTREAM_BASE: ${{ vars.APX_UPSTREAM_BASE || 'https://cnb.cool/erinilis/apx-plugin-releases/-/git/raw/main' }}
+        run: |
+          if [ "${{ inputs.force }}" = "true" ]; then
+            python tools/apx_sync.py check --force
+          else
+            python tools/apx_sync.py check
+          fi
+
+      - name: 下载、校验并打包
+        if: steps.check.outputs.changed == 'true'
+        env:
+          APX_UPSTREAM_BASE: ${{ vars.APX_UPSTREAM_BASE || 'https://cnb.cool/erinilis/apx-plugin-releases/-/git/raw/main' }}
+        run: |
+          python tools/apx_sync.py build \
+            --out dist \
+            --mirror mirror \
+            --expect-snapshot "${{ steps.check.outputs.snapshot }}"
+          python tools/apx_sync.py verify --dir dist
+
+      - name: 发布 Release
+        id: publish
+        if: steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SNAPSHOT: ${{ steps.check.outputs.snapshot }}
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          set -euo pipefail
+          TAG="$(cat dist/release-tag.txt)"
+          # 同一快照只发布一次：上次若在“建 Release 后、写 state 前”中断，这里可以直接复用。
+          EXISTING="$(gh release list --limit 100 --json tagName,body \
+            --jq ".[] | select(.body | contains(\"snapshot:${SNAPSHOT}\")) | .tagName" | head -n 1)"
+          if [ -n "${EXISTING}" ]; then
+            TAG="${EXISTING}"
+            echo "快照 ${SNAPSHOT} 已有发行：${TAG}"
+          else
+            BASE="${TAG}"
+            N=2
+            while gh release view "${TAG}" >/dev/null 2>&1; do
+              TAG="${BASE}-${N}"
+              N=$((N + 1))
+            done
+            gh release create "${TAG}" \
+              --title "APX ${VERSION} (${SNAPSHOT:0:8})" \
+              --notes-file dist/RELEASE_NOTES.md
+            gh release upload "${TAG}" \
+              dist/*.zip dist/SHA256SUMS.txt dist/apx-index.json dist/latest.json \
+              --clobber
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          python - "$TAG" <<'PY'
+          import json, os, sys
+          path = "dist/state.json"
+          data = json.load(open(path, encoding="utf-8"))
+          data["release_tag"] = sys.argv[1]
+          open(path, "w", encoding="utf-8").write(
+              json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+          )
+          PY
+
+      - name: 记录快照状态
+        if: steps.check.outputs.changed == 'true' && steps.publish.outputs.tag != ''
+        env:
+          SNAPSHOT: ${{ steps.check.outputs.snapshot }}
+        run: |
+          set -euo pipefail
+          cp dist/state.json state/state.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/state.json
+          if git diff --cached --quiet; then
+            echo "状态未变化"
+            exit 0
+          fi
+          git commit -m "chore: record APX snapshot ${SNAPSHOT:0:8}"
+          git push

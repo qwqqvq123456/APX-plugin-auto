@@ -1,0 +1,31 @@
+name: Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 准备 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 单元测试
+        run: python -m unittest discover -s tests -v
+
+      - name: 读取上游清单（仅校验结构，不下载负载）
+        env:
+          APX_UPSTREAM_BASE: ${{ vars.APX_UPSTREAM_BASE || 'https://cnb.cool/erinilis/apx-plugin-releases/-/git/raw/main' }}
+        run: python tools/apx_sync.py --state /tmp/none.json check
