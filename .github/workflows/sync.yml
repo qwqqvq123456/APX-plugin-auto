@@ -68,8 +68,8 @@ jobs:
           set -euo pipefail
           TAG="$(cat dist/release-tag.txt)"
           # 同一快照只发布一次：上次若在“建 Release 后、写 state 前”中断，这里可以直接复用。
-          EXISTING="$(gh release list --limit 100 --json tagName,body \
-            --jq ".[] | select(.body | contains(\"snapshot:${SNAPSHOT}\")) | .tagName" | head -n 1)"
+          EXISTING="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --jq ".[] | select((.body // \"\") | contains(\"${SNAPSHOT}\")) | .tag_name" | head -n 1)"
           if [ -n "${EXISTING}" ]; then
             TAG="${EXISTING}"
             echo "快照 ${SNAPSHOT} 已有发行：${TAG}"
@@ -83,10 +83,11 @@ jobs:
             gh release create "${TAG}" \
               --title "APX ${VERSION} (${SNAPSHOT:0:8})" \
               --notes-file dist/RELEASE_NOTES.md
-            gh release upload "${TAG}" \
-              dist/*.zip dist/SHA256SUMS.txt dist/apx-index.json dist/latest.json \
-              --clobber
           fi
+          # 无论新建还是复用，都补齐资产；--clobber 让中断后的重跑可以自愈。
+          gh release upload "${TAG}" \
+            dist/*.zip dist/SHA256SUMS.txt dist/apx-index.json dist/latest.json \
+            --clobber
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           python - "$TAG" <<'PY'
           import json, os, sys
