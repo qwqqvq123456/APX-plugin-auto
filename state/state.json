@@ -1,1 +1,7 @@
-{}
+{
+  "snapshot": "7b9773f6b970c760019047e78ce8f2d0f001b5a1d201dca5a85c6d3315f9bcef",
+  "version": "3.3.0",
+  "release_tag": "apx-3.3.0",
+  "updated_at": "2026-11-25T12:41:20+00:00",
+  "upstream_base": "https://cnb.cool/erinilis/apx-plugin-releases/-/git/raw/main"
+}
