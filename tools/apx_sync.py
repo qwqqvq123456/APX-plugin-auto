@@ -658,7 +658,7 @@ def cmd_build(args: argparse.Namespace) -> int:
 - 上游快照：`{snapshot}`
 - 生成时间：{index['generated_at']}
 - 上游地址：{args.base}
-- 全部平台解压后合计：{total_bytes:,} 字节
+- 全部平台清单声明字节合计：{total_bytes:,}（实际文件以 `SHA256SUMS.txt` 为准）
 - 可选元数据告警：{len(warnings)} 条{'（`runtime_dependencies.json` 的 size/sha256 允许滞后，已按 JSON 语义校验）' if warnings else ''}
 
 | 平台 | 客户端 | 版本 | 补丁文件 | 还原文件 | 原始字节 |
