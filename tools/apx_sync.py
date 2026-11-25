@@ -672,7 +672,7 @@ def cmd_build(args: argparse.Namespace) -> int:
 - `apx-index.json` / `latest.json`：版本、快照、文件数量与资产摘要。
 - `SHA256SUMS.txt`：全部资产的 SHA-256。
 
-> 本仓库仅做校验、打包与分发，不修改插件内容。文件所有权归上游作者。
+> 本仓库仅做校验、打包与分发，不修改插件内容。插件由第三方作者 erinilis 维护，文件所有权归其与游戏权利人所有。
 """
     (out_dir / "RELEASE_NOTES.md").write_text(notes, encoding="utf-8")
     (out_dir / "release-tag.txt").write_text(f"apx-{safe_version}\n", encoding="utf-8")

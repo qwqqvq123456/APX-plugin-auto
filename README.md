@@ -2,10 +2,22 @@
 
 自动跟踪 APX 插件上游快照，逐文件校验后打包为 GitHub Release 的独立流水线。
 
-- 上游数据源：`https://cnb.cool/erinilis/apx-plugin-releases/-/git/raw/main`（可用仓库变量 `APX_UPSTREAM_BASE` 替换）
+- 上游数据源：`https://cnb.cool/erinilis/apx-plugin-releases/-/git/raw/main`（第三方插件仓库，非 APMM 作者维护；可用仓库变量 `APX_UPSTREAM_BASE` 替换）
 - 运行环境：GitHub Actions（公开仓库免费额度足够），仅用 Python 标准库
 - 产物：5 个平台包 + 1 个合集包 + `apx-index.json` / `latest.json` / `SHA256SUMS.txt`
 - 触发：每 2 小时轮询、手动触发、`repository_dispatch`（`apx-upstream-updated`）
+
+## 生态与仓库角色
+
+| 仓库 | 角色 | 与本仓库的关系 |
+| --- | --- | --- |
+| [a190141074/APMM-next](https://github.com/a190141074/APMM-next) | 管理器源码，权威上游；GPL-3.0，非 fork | 只作为行为参照（`apx.rs` 的读取/校验规则），不引用代码、不依赖其 Release |
+| [cnb.cool/astral-weird-egg/APMM-next](https://cnb.cool/astral-weird-egg/APMM-next) | 源码镜像（CNB 侧副本） | 不参与 |
+| [cnb.cool/astral-weird-egg/astral-party-mod-manager-assets](https://cnb.cool/astral-weird-egg/astral-party-mod-manager-assets) | 管理器发行/资源仓库，只含安装包、插件包与清单 | 不参与；其中没有 APX 补丁负载 |
+| [a190141074/AstralPartyModManager-Previews](https://github.com/a190141074/AstralPartyModManager-Previews) | 预览图资源，`preview-manifest-v4.json` 的来源 | 不参与（与 APX 无关） |
+| [cnb.cool/erinilis/apx-plugin-releases](https://cnb.cool/erinilis/apx-plugin-releases) | **第三方** APX 插件发布，不属于 APMM 作者 | 本仓库唯一的数据源 |
+
+这张表解释了一个容易混淆的点：**管理器作者并不生产 APX 插件**。插件由第三方作者 erinilis 构建并发布在 CNB，APMM 只是消费者。因此任何“跟着 APMM 发版自动产出 APX 插件”的设想都缺少数据来源；本仓库改为跟踪插件自身的快照。
 
 ## 它解决什么问题
 
@@ -37,13 +49,13 @@ schedule / dispatch
 
 **零依赖。** 这个仓库不引用、不构建、不修改 `a190141074/APMM-next` 的任何代码，也不需要它的 Release 产物。
 
-原因是上游结构决定的：
+原因是生态分工决定的：
 
 - APMM 的 `src-tauri/src/apx.rs` 只做一件事——按固定前缀 `PLUGIN_REPO_RAW_PREFIX` 拉取 `<平台>/manifest.json` 与对应文件，然后安装到游戏目录；它本身**不生成** APX 补丁。
 - APMM 的 Release 资产只有管理器本体（MSI / 便携 ZIP / 更新清单），**不包含** APX 插件负载。
-- APX 补丁是 Unity Addressables 资源包，由上游作者从游戏本体与改动资源构建。GitHub 托管 Runner 没有游戏文件，无法“从 APMM 仓库重新生成”这些包。
+- APX 补丁是 Unity Addressables 资源包，由**第三方插件作者 erinilis** 从游戏本体与改动资源构建，APMM 作者不参与。GitHub 托管 Runner 没有游戏文件，也无法“从 APMM 仓库重新生成”这些包。
 
-所以可行的自动化只有一条：**跟踪真实上游快照 → 校验 → 重新打包 → 发布**。本仓库把这条链路做成无状态、可重放、可审计的流水线，并且不绑定 APMM 的版本节奏。
+所以可行的自动化只有一条：**跟踪插件上游快照 → 校验 → 重新打包 → 发布**。本仓库把这条链路做成无状态、可重放、可审计的流水线，并且不绑定 APMM 的版本节奏。
 
 如果你以后有了自己的生成器（本机或自建 Runner），把产物按同样的目录结构放到任意静态站点，设置仓库变量 `APX_UPSTREAM_BASE` 指向它即可，工作流无需改动。
 
@@ -117,7 +129,7 @@ python -m unittest discover -s tests -v            # 17 个单元测试
 
 ## 边界与免责声明
 
-- 仓库**不生成、不修改、不签名**插件内容，只做镜像、校验与重新打包；文件版权归上游作者与游戏厂商所有。
+- 仓库**不生成、不修改、不签名**插件内容，只做镜像、校验与重新打包；文件版权归第三方插件作者 erinilis 与游戏厂商所有。
 - 上游当前不提供签名清单，本仓库的信任基础是“上游 raw 内容 + 清单内 SHA-256”，不构成对插件安全性的独立审计。
 - 上游 404、清单结构变更、摘要不符都会让流水线红灯，这是刻意设计：宁可停下，也不发布未经验证的包。
 - 若上游删除或变更内容，已发布的历史 Release 不会自动撤回；需要时手动删除。
