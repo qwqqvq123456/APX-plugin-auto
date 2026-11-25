@@ -526,7 +526,6 @@ def cmd_check(args: argparse.Namespace) -> int:
         "snapshot": snapshot,
         "version": version,
         "upstream_base": args.base,
-        "warnings": warnings,
         "platforms": {
             platform: {
                 "version": manifest.version,
